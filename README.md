@@ -19,7 +19,7 @@ Ez a script lehetővé teszi a Nginx Proxy Manager használatát hostok létreho
 3. Indítsa el a scriptet a megfelelő paraméterekkel:
 
    ```
-   ./nginx-proxy-manager.sh <művelet> [domain_name] [forward_scheme] [forward_host] [forward_port] [advanced_config] [ssl_force]
+   ./nginx-proxy-manager.sh <művelet> [domain_name] [forward_scheme] [forward_host] [forward_port] [advanced_config] [ssl_force] [certificate_name] [allow_websocket_upgrade]
    ```
 
 ## Használat
@@ -34,7 +34,7 @@ A script az alábbi műveletekhez használható:
 
 Host létrehozása:
    ```
-   ./nginx-proxy-manager.sh create example.com http 1.1.1.1 80 "" 0
+   ./nginx-proxy-manager.sh create example.com http 1.1.1.1 80 "" true "*.example.com" true
    ```
 Licenc
 Ez a script nyílt forráskódú szoftver, és a MIT licenc alatt érhető el.

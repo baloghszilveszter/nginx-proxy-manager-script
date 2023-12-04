@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Nginx Proxy Manager host IP cime és portja
+# Nginx Proxy Manager host IP cime es portja
 HOST_IP="192.168.1.100"
 HOST_PORT="81"
 
@@ -16,21 +16,51 @@ if [ -z "$SESSION_TOKEN" ]; then
   exit 1
 fi
 
-# Ellenorizze, hogy legalabb egy argumentumot megadtak-e
 if [ $# -lt 1 ]; then
-  echo "Hasznalat: $0 <create/delete/check> [domain_name] [forward_scheme] [forward_host] [forward_port] [advanced_config] [ssl_force]"
+  echo "Hasznalat: $0 <create/delete/check> [domain_name] [forward_scheme] [forward_host] [forward_port] [advanced_config] [ssl_force] [certificate_name] [allow_websocket_upgrade]"
   exit 1
 fi
 
 # Elso argumentum: create, delete vagy check
 ACTION="$1"
 
+# Ellenorizze, hogy a certificate_name-et csak create muveletnel hasznaljuk
+if [ "$ACTION" == "create" ]; then
+  if [ $# -lt 8 ]; then
+    echo "Hianyzo parameterek a host letrehozasahoz."
+    echo "Hasznalat: $0 create <domain_name> <forward_scheme> <forward_host> <forward_port> <advanced_config> <ssl_force> <certificate_name> <allow_websocket_upgrade>"
+    exit 1
+  fi
+  CERTIFICATE_NAME="$8"
+else
+  CERTIFICATE_NAME=""
+fi
+
+# Tanúsitvanyok lekerese, csak ha create muveletnel van megadva certificate_name
+if [ "$ACTION" == "create" ]; then
+  CERTIFICATES=$(curl -s -X GET "http://$HOST_IP:$HOST_PORT/api/nginx/certificates" -H "Authorization: Bearer $SESSION_TOKEN")
+  CERTIFICATE_ID=$(echo "$CERTIFICATES" | jq -r --arg name "$CERTIFICATE_NAME" '.[] | select(.nice_name == $name) | .id')
+
+  # Ellenorizzuk, hogy talaltunk-e olyan tanúsitvanyt, ami megfelel a megadott nevnek
+  if [ -z "$CERTIFICATE_ID" ]; then
+    echo "Nem talalhato tanúsitvany a megadott nevvel: $CERTIFICATE_NAME"
+    exit 1
+  fi
+
+  echo "A(z) '$CERTIFICATE_NAME' tanúsitvany azonositoja: $CERTIFICATE_ID"
+fi
+
+# A torles es ellenorzes muvelet nem koveteli meg az SSL tanúsitvanyt
+if [ "$ACTION" == "delete" ] || [ "$ACTION" == "check" ]; then
+  CERTIFICATE_ID=""
+fi
+
 # Az Nginx host letrehozasa
 if [ "$ACTION" == "create" ]; then
   # Ellenorzi, hogy legalabb a minimalis parametereket megadtak-e
   if [ $# -lt 7 ]; then
     echo "Hianyzo parameterek a host letrehozasahoz."
-    echo "Hasznalat: $0 create <domain_name> <forward_scheme> <forward_host> <forward_port> <advanced_config> <ssl_force>"
+    echo "Hasznalat: $0 create <domain_name> <forward_scheme> <forward_host> <forward_port> <advanced_config> <ssl_force> <certificate_name>"
     exit 1
   fi
 
@@ -40,15 +70,17 @@ if [ "$ACTION" == "create" ]; then
   FORWARD_PORT="$5"
   ADVANCED_CONFIG="$6"
   SSL_FORCE="$7"
+  ALLOW_WEBSOCKET_UPGRADE="$9"
 
-  # Uj szabaly letrehozasa az Nginx Proxy Manager alkalmazasban
   curl -s -X POST "http://$HOST_IP:$HOST_PORT/api/nginx/proxy-hosts" -H "Content-Type: application/json" -H "Authorization: Bearer $SESSION_TOKEN" -d '{
     "domain_names":["'"$DOMAIN_NAME"'"],
     "forward_scheme":"'"$FORWARD_SCHEME"'",
     "forward_host":"'"$FORWARD_HOST"'",
     "forward_port":'"$FORWARD_PORT"',
     "advanced_config":"'"$ADVANCED_CONFIG"'",
-    "ssl_forced":'"$SSL_FORCE"'
+    "ssl_forced":'"$SSL_FORCE"',
+    "certificate_id":"'"$CERTIFICATE_ID"'",
+    "allow_websocket_upgrade":'"$ALLOW_WEBSOCKET_UPGRADE"'
   }'
   echo "Nginx host letrehozva: $DOMAIN_NAME"
 
